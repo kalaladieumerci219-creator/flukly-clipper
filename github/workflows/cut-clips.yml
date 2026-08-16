@@ -1,0 +1,44 @@
+name: Cut Clips
+
+on:
+  repository_dispatch:
+    types: [cut-clips]
+
+jobs:
+  cut:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download source video
+        run: curl -L -o input.mp4 "${{ github.event.client_payload.video_url }}"
+
+      - name: Cut and upload clips
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PROJECT_ID: ${{ github.event.client_payload.project_id }}
+          CLIPS_JSON: ${{ toJson(github.event.client_payload.clips) }}
+        run: |
+          echo "$CLIPS_JSON" > clips.json
+          cat clips.json | jq -c '.[]' | while read -r clip; do
+            id=$(echo "$clip" | jq -r '.id')
+            start=$(echo "$clip" | jq -r '.start_time')
+            end=$(echo "$clip" | jq -r '.end_time')
+            duration=$(echo "$end - $start" | bc)
+            output="clip-$id.mp4"
+
+            ffmpeg -y -i input.mp4 -ss "$start" -t "$duration" -c copy "$output"
+
+            curl -X POST "$SUPABASE_URL/storage/v1/object/Clips/$PROJECT_ID/$output" \
+              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+              -H "Content-Type: video/mp4" \
+              --data-binary "@$output"
+
+            clip_url="$SUPABASE_URL/storage/v1/object/public/Clips/$PROJECT_ID/$output"
+
+            curl -X PATCH "$SUPABASE_URL/rest/v1/clips?id=eq.$id" \
+              -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+              -H "Content-Type: application/json" \
+              -H "Prefer: return=minimal" \
+              -d "{\"clip_url\": \"$clip_url\"}"
+          done
