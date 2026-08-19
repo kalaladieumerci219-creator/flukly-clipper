@@ -10,10 +10,8 @@ jobs:
     steps:
       - name: Download source video
         run: curl -L -o input.mp4 "${{ github.event.client_payload.video_url }}"
-      - name: Install ffmpeg and jq
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg jq bc
+      - name: Install ffmpeg
+        uses: FedericoCarboni/setup-ffmpeg@v3
       - name: Cut and upload clips
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
