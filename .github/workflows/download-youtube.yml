@@ -1,0 +1,48 @@
+name: Download YouTube
+
+on:
+  repository_dispatch:
+    types: [download-youtube]
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install yt-dlp and ffmpeg
+        run: |
+          curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+          chmod a+rx /usr/local/bin/yt-dlp
+          curl -L https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o ffmpeg.tar.xz
+          tar -xf ffmpeg.tar.xz
+          sudo mv ffmpeg-*-amd64-static/ffmpeg /usr/local/bin/
+          sudo mv ffmpeg-*-amd64-static/ffprobe /usr/local/bin/
+
+      - name: Download YouTube video
+        env:
+          YOUTUBE_URL: ${{ github.event.client_payload.youtube_url }}
+        run: |
+          yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
+            --merge-output-format mp4 \
+            -o input.mp4 \
+            "$YOUTUBE_URL"
+
+      - name: Upload to Supabase and update project
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PROJECT_ID: ${{ github.event.client_payload.project_id }}
+          USER_ID: ${{ github.event.client_payload.user_id }}
+        run: |
+          path="$USER_ID/$(date +%s)-youtube.mp4"
+
+          curl -X POST "$SUPABASE_URL/storage/v1/object/Videos/$path" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Content-Type: video/mp4" \
+            --data-binary "@input.mp4"
+
+          curl -X PATCH "$SUPABASE_URL/rest/v1/projects?id=eq.$PROJECT_ID" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d "{\"video_path\": \"$path\", \"status\": \"downloaded\"}"
