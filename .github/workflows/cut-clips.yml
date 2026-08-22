@@ -32,6 +32,7 @@ jobs:
             duration=$(echo "$end - $start" | bc)
             output="clip-$id.mp4"
             subtitles=$(echo "$clip" | jq -r '.subtitles_ass // empty')
+          echo "DEBUG subtitles length: ${#subtitles}"  
 
             if [ -n "$subtitles" ]; then
               printf '%s\n' "$subtitles" > "clip-$id.ass"
