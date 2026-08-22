@@ -31,8 +31,14 @@ jobs:
             end=$(echo "$clip" | jq -r '.end_time')
             duration=$(echo "$end - $start" | bc)
             output="clip-$id.mp4"
+            subtitles=$(echo "$clip" | jq -r '.subtitles_ass // empty')
 
-            ffmpeg -y -i input.mp4 -ss "$start" -t "$duration" -c copy "$output"
+            if [ -n "$subtitles" ]; then
+              printf '%s\n' "$subtitles" > "clip-$id.ass"
+              ffmpeg -y -ss "$start" -i input.mp4 -t "$duration" -vf "ass=clip-$id.ass" -c:v libx264 -preset veryfast -c:a aac "$output"
+            else
+              ffmpeg -y -ss "$start" -i input.mp4 -t "$duration" -c copy "$output"
+            fi
 
             curl -X POST "$SUPABASE_URL/storage/v1/object/Clips/$PROJECT_ID/$output" \
               -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
