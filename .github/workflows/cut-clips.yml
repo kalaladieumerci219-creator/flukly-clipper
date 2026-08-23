@@ -23,7 +23,9 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           PROJECT_ID: ${{ github.event.client_payload.project_id }}
           CLIPS_JSON: ${{ toJson(github.event.client_payload.clips) }}
+          HAS_WATERMARK: ${{ github.event.client_payload.has_watermark }}
         run: |
+        curl -L -o watermark.png https://raw.githubusercontent.com/kalaladieumerci219-creator/flukly-clipper/main/watermark.png
           echo "$CLIPS_JSON" > clips.json
           cat clips.json | jq -c '.[]' | while read -r clip; do
             id=$(echo "$clip" | jq -r '.id')
@@ -34,12 +36,24 @@ jobs:
             subtitles=$(echo "$clip" | jq -r '.subtitles_ass // empty')
           echo "DEBUG subtitles length: ${#subtitles}"  
 
-            if [ -n "$subtitles" ]; then
-              printf '%s\n' "$subtitles" > "clip-$id.ass"
-              ffmpeg -y -ss "$start" -i input.mp4 -t "$duration" -vf "ass=clip-$id.ass" -c:v libx264 -preset veryfast -c:a aac "$output"
-            else
-              ffmpeg -y -ss "$start" -i input.mp4 -t "$duration" -c copy "$output"
-            fi
+           WIDTH=$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 input.mp4)
+          WM_WIDTH=$(( WIDTH * 13 / 100 ))
+
+          if [ "$HAS_WATERMARK" = "true" ] && [ -n "$subtitles" ]; then
+            printf '%s\n' "$subtitles" > "clip-$id.ass"
+            ffmpeg -y -ss "$start" -i input.mp4 -loop 1 -i watermark.png -t "$duration" \
+              -filter_complex "[0:v]ass=clip-$id.ass[subbed];[1:v]scale=$WM_WIDTH:-1,format=rgba,colorchannelmixer=aa=0.85[wm];[subbed][wm]overlay=x=W*0.03:y=H*0.03:shortest=1[outv]" \
+              -map "[outv]" -map 0:a? "$output"
+          elif [ "$HAS_WATERMARK" = "true" ]; then
+            ffmpeg -y -ss "$start" -i input.mp4 -loop 1 -i watermark.png -t "$duration" \
+              -filter_complex "[1:v]scale=$WM_WIDTH:-1,format=rgba,colorchannelmixer=aa=0.85[wm];[0:v][wm]overlay=x=W*0.03:y=H*0.03:shortest=1[outv]" \
+              -map "[outv]" -map 0:a? "$output"
+          elif [ -n "$subtitles" ]; then
+            printf '%s\n' "$subtitles" > "clip-$id.ass"
+            ffmpeg -y -ss "$start" -i input.mp4 -t "$duration" -vf ass=clip-$id.ass "$output"
+          else
+            ffmpeg -y -ss "$start" -i input.mp4 -t "$duration" -c copy "$output"
+          fi 
 
             curl -X POST "$SUPABASE_URL/storage/v1/object/Clips/$PROJECT_ID/$output" \
               -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
