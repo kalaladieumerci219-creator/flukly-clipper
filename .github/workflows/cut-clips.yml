@@ -25,7 +25,7 @@ jobs:
           CLIPS_JSON: ${{ toJson(github.event.client_payload.clips) }}
           HAS_WATERMARK: ${{ github.event.client_payload.has_watermark }}
         run: |
-        curl -L -o watermark.png https://raw.githubusercontent.com/kalaladieumerci219-creator/flukly-clipper/main/watermark.png
+          curl -L -o watermark.png https://raw.githubusercontent.com/kalaladieumerci219-creator/flukly-clipper/main/watermark.png
           echo "$CLIPS_JSON" > clips.json
           cat clips.json | jq -c '.[]' | while read -r clip; do
             id=$(echo "$clip" | jq -r '.id')
