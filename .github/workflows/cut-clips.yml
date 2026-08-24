@@ -46,7 +46,7 @@ jobs:
               -map "[outv]" -map 0:a? "$output"
           elif [ "$HAS_WATERMARK" = "true" ]; then
             ffmpeg -y -ss "$start" -i input.mp4 -loop 1 -i watermark.png -t "$duration" \
-              -filter_complex "[1:v]scale=$WM_WIDTH:-1,format=rgba,colorchannelmixer=aa=0.85[wm];[0:v][wm]overlay=x=W*0.08:y=H*0.14:shortest=1[outv]" \ 
+              -filter_complex "[1:v]scale=$WM_WIDTH:-1,format=rgba,colorchannelmixer=aa=0.85[wm];[0:v][wm]overlay=x=W*0.08:y=H*0.14:shortest=1[outv]" \
               -map "[outv]" -map 0:a? "$output"
           elif [ -n "$subtitles" ]; then
             printf '%s\n' "$subtitles" > "clip-$id.ass"
