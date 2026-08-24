@@ -29,7 +29,7 @@ jobs:
           echo "$CLIPS_JSON" > clips.json
           WIDTH=$(ffprobe -v error -nostdin -select_streams v:0 -show_entries stream=width -of csv=p=0 input.mp4)
           while read -r clip; do
-          while read -r clip; do
+          
             id=$(echo "$clip" | jq -r '.id')
             start=$(echo "$clip" | jq -r '.start_time')
             end=$(echo "$clip" | jq -r '.end_time')
