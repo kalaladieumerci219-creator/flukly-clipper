@@ -27,6 +27,8 @@ jobs:
         run: |
           curl -L -o watermark.png https://raw.githubusercontent.com/kalaladieumerci219-creator/flukly-clipper/main/watermark.png
           echo "$CLIPS_JSON" > clips.json
+          WIDTH=$(ffprobe -v error -nostdin -select_streams v:0 -show_entries stream=width -of csv=p=0 input.mp4)
+          while read -r clip; do
           while read -r clip; do
             id=$(echo "$clip" | jq -r '.id')
             start=$(echo "$clip" | jq -r '.start_time')
@@ -36,7 +38,7 @@ jobs:
             subtitles=$(echo "$clip" | jq -r '.subtitles_ass // empty')
           echo "DEBUG subtitles length: ${#subtitles}"  
 
-           WIDTH=$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 input.mp4)
+           
           WM_WIDTH=$(( WIDTH * 30 / 100 )) 
 
           if [ "$HAS_WATERMARK" = "true" ] && [ -n "$subtitles" ]; then
