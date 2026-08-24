@@ -37,7 +37,7 @@ jobs:
           echo "DEBUG subtitles length: ${#subtitles}"  
 
            WIDTH=$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 input.mp4)
-          WM_WIDTH=$(( WIDTH * 15 / 100 )) 
+          WM_WIDTH=$(( WIDTH * 30 / 100 )) 
 
           if [ "$HAS_WATERMARK" = "true" ] && [ -n "$subtitles" ]; then
             printf '%s\n' "$subtitles" > "clip-$id.ass"
