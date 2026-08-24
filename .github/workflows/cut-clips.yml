@@ -27,7 +27,7 @@ jobs:
         run: |
           curl -L -o watermark.png https://raw.githubusercontent.com/kalaladieumerci219-creator/flukly-clipper/main/watermark.png
           echo "$CLIPS_JSON" > clips.json
-          cat clips.json | jq -c '.[]' | while read -r clip; do
+          while read -r clip; do
             id=$(echo "$clip" | jq -r '.id')
             start=$(echo "$clip" | jq -r '.start_time')
             end=$(echo "$clip" | jq -r '.end_time')
@@ -68,4 +68,4 @@ jobs:
               -H "Content-Type: application/json" \
               -H "Prefer: return=minimal" \
               -d "{\"clip_url\": \"$clip_url\"}"
-          done
+           done < <(jq -c '.[]' clips.json)  
