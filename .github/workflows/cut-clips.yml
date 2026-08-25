@@ -39,7 +39,7 @@ jobs:
           echo "DEBUG subtitles length: ${#subtitles}"  
 
            
-          WM_WIDTH=$(( WIDTH * 40 / 100 )) 
+          WM_WIDTH=$(( WIDTH * 38 / 100 )) 
 
           if [ "$HAS_WATERMARK" = "true" ] && [ -n "$subtitles" ]; then
             printf '%s\n' "$subtitles" > "clip-$id.ass"
