@@ -11,13 +11,27 @@ jobs:
     steps:
       - name: Download source video
         run: curl -L --max-time 180 --retry 3 --retry-delay 5 --retry-connrefused -o input.mp4 "${{ github.event.client_payload.video_url }}"
+
+      - name: Cache ffmpeg
+        id: cache-ffmpeg
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/bin/ffmpeg
+            /usr/local/bin/ffprobe
+          key: ffmpeg-static-amd64-v1
+
       - name: Install ffmpeg
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         run: |
           curl -L --max-time 120 --retry 3 --retry-delay 5 --retry-connrefused https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o ffmpeg.tar.xz
           tar -xf ffmpeg.tar.xz
           sudo mv ffmpeg-*-amd64-static/ffmpeg /usr/local/bin/
           sudo mv ffmpeg-*-amd64-static/ffprobe /usr/local/bin/
-          ffmpeg -version
+
+      - name: Verify ffmpeg
+        run: ffmpeg -version
+
       - name: Cut and upload clips
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -29,39 +43,40 @@ jobs:
           curl -L --max-time 60 --retry 3 --retry-delay 5 --retry-connrefused -o watermark.png https://raw.githubusercontent.com/kalaladieumerci219-creator/flukly-clipper/main/watermark.png
           echo "$CLIPS_JSON" > clips.json
           WIDTH=$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 input.mp4)
-          while read -r -u 3 clip; do
+
+          process_clip() {
+            local clip="$1"
+            local id start end duration output subtitles WM_WIDTH
             id=$(echo "$clip" | jq -r '.id')
             start=$(echo "$clip" | jq -r '.start_time')
             end=$(echo "$clip" | jq -r '.end_time')
             duration=$(echo "$end - $start" | bc)
             output="clip-$id.mp4"
             subtitles=$(echo "$clip" | jq -r '.subtitles_ass // empty')
-          echo "DEBUG subtitles length: ${#subtitles}"
+            WM_WIDTH=$(( WIDTH * 38 / 100 ))
 
-          WM_WIDTH=$(( WIDTH * 38 / 100 ))
-
-          if [ "$HAS_WATERMARK" = "true" ] && [ -n "$subtitles" ]; then
-            printf '%s\n' "$subtitles" > "clip-$id.ass"
-            ffmpeg -y -nostdin -ss "$start" -i input.mp4 -loop 1 -i watermark.png -t "$duration" \
-              -filter_complex "[0:v]ass=clip-$id.ass[subbed];[1:v]scale=$WM_WIDTH:-1,format=rgba,colorchannelmixer=aa=0.85[wm];[subbed][wm]overlay=x=W*0.08:y=H*0.14:shortest=1[outv]" \
-              -map "[outv]" -map 0:a? "$output"
-          elif [ "$HAS_WATERMARK" = "true" ]; then
-            ffmpeg -y -nostdin -ss "$start" -i input.mp4 -loop 1 -i watermark.png -t "$duration" \
-              -filter_complex "[1:v]scale=$WM_WIDTH:-1,format=rgba,colorchannelmixer=aa=0.85[wm];[0:v][wm]overlay=x=W*0.08:y=H*0.14:shortest=1[outv]" \
-              -map "[outv]" -map 0:a? "$output"
-          elif [ -n "$subtitles" ]; then
-            printf '%s\n' "$subtitles" > "clip-$id.ass"
-            ffmpeg -y -nostdin -ss "$start" -i input.mp4 -t "$duration" -vf ass=clip-$id.ass "$output"
-          else
-            ffmpeg -y -nostdin -ss "$start" -i input.mp4 -t "$duration" -c copy "$output"
-          fi
+            if [ "$HAS_WATERMARK" = "true" ] && [ -n "$subtitles" ]; then
+              printf '%s\n' "$subtitles" > "clip-$id.ass"
+              timeout 180 ffmpeg -y -nostdin -ss "$start" -i input.mp4 -loop 1 -i watermark.png -t "$duration" \
+                -filter_complex "[0:v]ass=clip-$id.ass[subbed];[1:v]scale=$WM_WIDTH:-1,format=rgba,colorchannelmixer=aa=0.85[wm];[subbed][wm]overlay=x=W*0.08:y=H*0.14:shortest=1[outv]" \
+                -map "[outv]" -map 0:a? "$output"
+            elif [ "$HAS_WATERMARK" = "true" ]; then
+              timeout 180 ffmpeg -y -nostdin -ss "$start" -i input.mp4 -loop 1 -i watermark.png -t "$duration" \
+                -filter_complex "[1:v]scale=$WM_WIDTH:-1,format=rgba,colorchannelmixer=aa=0.85[wm];[0:v][wm]overlay=x=W*0.08:y=H*0.14:shortest=1[outv]" \
+                -map "[outv]" -map 0:a? "$output"
+            elif [ -n "$subtitles" ]; then
+              printf '%s\n' "$subtitles" > "clip-$id.ass"
+              timeout 180 ffmpeg -y -nostdin -ss "$start" -i input.mp4 -t "$duration" -vf ass=clip-$id.ass "$output"
+            else
+              timeout 180 ffmpeg -y -nostdin -ss "$start" -i input.mp4 -t "$duration" -c copy "$output"
+            fi
 
             curl -X POST --max-time 120 --retry 3 --retry-delay 5 --retry-connrefused "$SUPABASE_URL/storage/v1/object/Clips/$PROJECT_ID/$output" \
               -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
               -H "Content-Type: video/mp4" \
               --data-binary "@$output"
 
-            clip_url="$SUPABASE_URL/storage/v1/object/public/Clips/$PROJECT_ID/$output"
+            local clip_url="$SUPABASE_URL/storage/v1/object/public/Clips/$PROJECT_ID/$output"
 
             curl -X PATCH --max-time 30 --retry 3 --retry-delay 5 --retry-connrefused "$SUPABASE_URL/rest/v1/clips?id=eq.$id" \
               -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
@@ -69,4 +84,20 @@ jobs:
               -H "Content-Type: application/json" \
               -H "Prefer: return=minimal" \
               -d "{\"clip_url\": \"$clip_url\"}"
+          }
+
+          pids=()
+          while read -r -u 3 clip; do
+            process_clip "$clip" &
+            pids+=("$!")
           done 3< <(jq -c '.[]' clips.json)
+
+          fail=0
+          for pid in "${pids[@]}"; do
+            wait "$pid" || fail=1
+          done
+
+          if [ "$fail" -eq 1 ]; then
+            echo "Un ou plusieurs clips ont échoué"
+            exit 1
+          fi
