@@ -53,22 +53,22 @@ jobs:
             duration=$(echo "$end - $start" | bc)
             output="clip-$id.mp4"
             subtitles=$(echo "$clip" | jq -r '.subtitles_ass // empty')
-            WM_WIDTH=$(( WIDTH * 38 / 100 ))
+            WM_WIDTH=$(( 1080 * 38 / 100 ))
 
             if [ "$HAS_WATERMARK" = "true" ] && [ -n "$subtitles" ]; then
               printf '%s\n' "$subtitles" > "clip-$id.ass"
               timeout 180 ffmpeg -y -nostdin -ss "$start" -i input.mp4 -loop 1 -i watermark.png -t "$duration" \
-                -filter_complex "[0:v]ass=clip-$id.ass[subbed];[1:v]scale=$WM_WIDTH:-1,format=rgba,colorchannelmixer=aa=0.85[wm];[subbed][wm]overlay=x=W*0.08:y=H*0.14:shortest=1[outv]" \
+                -filter_complex "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,ass=clip-$id.ass[subbed];[1:v]scale=$WM_WIDTH:-1,format=rgba,colorchannelmixer=aa=0.85[wm];[subbed][wm]overlay=x=W*0.08:y=H*0.14:shortest=1[outv]" \
                 -map "[outv]" -map 0:a? "$output"
             elif [ "$HAS_WATERMARK" = "true" ]; then
               timeout 180 ffmpeg -y -nostdin -ss "$start" -i input.mp4 -loop 1 -i watermark.png -t "$duration" \
-                -filter_complex "[1:v]scale=$WM_WIDTH:-1,format=rgba,colorchannelmixer=aa=0.85[wm];[0:v][wm]overlay=x=W*0.08:y=H*0.14:shortest=1[outv]" \
+                -filter_complex "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[cropped];[1:v]scale=$WM_WIDTH:-1,format=rgba,colorchannelmixer=aa=0.85[wm];[cropped][wm]overlay=x=W*0.08:y=H*0.14:shortest=1[outv]" \ 
                 -map "[outv]" -map 0:a? "$output"
             elif [ -n "$subtitles" ]; then
               printf '%s\n' "$subtitles" > "clip-$id.ass"
-              timeout 180 ffmpeg -y -nostdin -ss "$start" -i input.mp4 -t "$duration" -vf ass=clip-$id.ass "$output"
+              timeout 180 ffmpeg -y -nostdin -ss "$start" -i input.mp4 -t "$duration" -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,ass=clip-$id.ass" "$output" 
             else
-              timeout 180 ffmpeg -y -nostdin -ss "$start" -i input.mp4 -t "$duration" -c copy "$output"
+              timeout 180 ffmpeg -y -nostdin -ss "$start" -i input.mp4 -t "$duration" -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920" -c:a copy "$output" 
             fi
 
             curl -X POST --max-time 120 --retry 3 --retry-delay 5 --retry-connrefused "$SUPABASE_URL/storage/v1/object/Clips/$PROJECT_ID/$output" \
