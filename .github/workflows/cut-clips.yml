@@ -62,7 +62,7 @@ jobs:
                 -map "[outv]" -map 0:a? "$output"
             elif [ "$HAS_WATERMARK" = "true" ]; then
               timeout 180 ffmpeg -y -nostdin -ss "$start" -i input.mp4 -loop 1 -i watermark.png -t "$duration" \
-                -filter_complex "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[cropped];[1:v]scale=$WM_WIDTH:-1,format=rgba,colorchannelmixer=aa=0.85[wm];[cropped][wm]overlay=x=W*0.08:y=H*0.14:shortest=1[outv]" \ 
+                -filter_complex "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[cropped];[1:v]scale=$WM_WIDTH:-1,format=rgba,colorchannelmixer=aa=0.85[wm];[cropped][wm]overlay=x=W*0.08:y=H*0.14:shortest=1[outv]" \
                 -map "[outv]" -map 0:a? "$output"
             elif [ -n "$subtitles" ]; then
               printf '%s\n' "$subtitles" > "clip-$id.ass"
