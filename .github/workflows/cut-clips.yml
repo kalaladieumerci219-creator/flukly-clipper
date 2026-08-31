@@ -86,8 +86,12 @@ jobs:
               -d "{\"clip_url\": \"$clip_url\"}"
           }
 
+          MAX_PARALLEL=2
           pids=()
           while read -r -u 3 clip; do
+            while [ "$(jobs -rp | wc -l)" -ge "$MAX_PARALLEL" ]; do
+              wait -n
+            done
             process_clip "$clip" &
             pids+=("$!")
           done 3< <(jq -c '.[]' clips.json)
@@ -100,4 +104,4 @@ jobs:
           if [ "$fail" -eq 1 ]; then
             echo "Un ou plusieurs clips ont échoué"
             exit 1
-          fi
+          fi 
