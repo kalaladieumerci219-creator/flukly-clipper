@@ -16,7 +16,8 @@ jobs:
           tar -xf ffmpeg.tar.xz
           sudo mv ffmpeg-*-amd64-static/ffmpeg /usr/local/bin/
           sudo mv ffmpeg-*-amd64-static/ffprobe /usr/local/bin/
-
+          curl -fsSL https://deno.land/install.sh | sh
+          echo "$HOME/.deno/bin" >> $GITHUB_PATH
       - name: Download YouTube video
         env:
           YOUTUBE_URL: ${{ github.event.client_payload.youtube_url }}
@@ -26,7 +27,7 @@ jobs:
           yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
             --merge-output-format mp4 \
             --cookies cookies.txt \
-            --extractor-args "youtube:player_client=tv" \
+            --extractor-args "youtube:player_client=default,web_embedded" \
             -o input.mp4 \
             "$YOUTUBE_URL"
 
