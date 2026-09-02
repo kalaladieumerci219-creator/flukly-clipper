@@ -20,9 +20,12 @@ jobs:
       - name: Download YouTube video
         env:
           YOUTUBE_URL: ${{ github.event.client_payload.youtube_url }}
+          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
         run: |
+          echo "$YOUTUBE_COOKIES" > cookies.txt
           yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
             --merge-output-format mp4 \
+            --cookies cookies.txt \
             -o input.mp4 \
             "$YOUTUBE_URL"
 
