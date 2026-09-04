@@ -34,8 +34,8 @@ jobs:
 
       - name: Cut and upload clips
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: ${{ github.event.client_payload.supabase_url || secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ github.event.client_payload.supabase_service_role_key || secrets.SUPABASE_SERVICE_ROLE_KEY }} 
           PROJECT_ID: ${{ github.event.client_payload.project_id }}
           CLIPS_JSON: ${{ toJson(github.event.client_payload.clips) }}
           HAS_WATERMARK: ${{ github.event.client_payload.has_watermark }}
